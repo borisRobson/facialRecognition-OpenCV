@@ -29,13 +29,12 @@ LIBS += -L/usr/local/lib/ -lopencv_core -lopencv_imgproc -lopencv_video -lopencv
 #LIBS += -L/usr/lib -lgstreamer-0.10 -lgstapp-0.10 -lgstbase-0.10 -lglib-2.0 -lgobject-2.0 -lgmodule-2.0 -lgthread-2.0 -lrt -lz -lxml2
 
 SOURCES += main.cpp\
-        mainwindow.cpp \
-    detectface.cpp \
-    recognition.cpp
+    recognition.cpp \
+    objectDetection.cpp
 
-HEADERS  += mainwindow.h \
-    detectface.h \
-    recognition.h
+HEADERS  += \
+    recognition.h \
+    objectDetection.h
 
 FORMS    += mainwindow.ui
 
@@ -43,4 +42,3 @@ OTHER_FILES += \
     ../../opencv/opencv-2.4.10/data/haarcascades/haarcascade_eye_tree_eyeglasses.xml \
     ../../opencv/opencv-2.4.10/data/haarcascades/haarcascade_eye.xml \
     ../../opencv/opencv-2.4.10/data/lbpcascades/lbpcascade_frontalface.xml \
-

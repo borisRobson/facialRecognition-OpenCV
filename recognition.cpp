@@ -3,7 +3,6 @@
 #include "opencv2/opencv.hpp"
 #include "opencv2/contrib/contrib.hpp"
 #include "opencv2/core/core.hpp"
-//#include "/home/standby/opencv/opencv-2.4.10/modules/contrib/include/opencv2/contrib/contrib.hpp"
 #include "opencv/cv.h"
 #include "opencv/cxcore.h"
 

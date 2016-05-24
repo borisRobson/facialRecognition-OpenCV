@@ -1,6 +1,4 @@
-#include <QtGui/QApplication>
-#include "mainwindow.h"
-#include "detectface.h"
+#include "objectDetection.h"
 #include "recognition.h"
 
 #include "opencv2/opencv.hpp"
@@ -19,16 +17,6 @@
 using namespace cv;
 using namespace std;
 
-VideoCapture capture;
-Mat frame, face;
-Ptr<FaceRecognizer> model;
-vector<Mat> preProcessedFaces;
-vector<int> faceLabels;
-
-const float DETECTION_THRESHOLD = 0.7f;
-
-void storeFaces(Mat &processedFace);
-
 template <typename T> string toString(T t)
 {
     ostringstream out;
@@ -36,88 +24,135 @@ template <typename T> string toString(T t)
     return out.str();
 }
 
+//define variables to be used in program
+const int CAMERA_WIDTH = 640;
+const int CAMERA_HEIGHT = 480;
+const string DATABASE_IMAGE = "/home/standby/Projects/faceRecognition/faces/Brandon.png";
 
-int main(int argc, char *argv[])
+//function prototypes
+void initCamera(VideoCapture &capture);
+
+void detectAndRecognise(VideoCapture &capture, CascadeClassifier &faceCascade, CascadeClassifier &eyeCascade, CascadeClassifier &eyeGlassCascade);
+void storeFaces(Mat &processedFace, vector<Mat>& preProcessedFaces, vector<int>& faceLabels);
+
+const float DETECTION_THRESHOLD = 0.7f;
+
+detectObject detection;
+recognition faceRecognition;
+
+int main (int argc, char* argv[])
 {
-    QApplication a(argc, argv);
-    detectFace faceDetector;
-    recognition faceRec;
-    MainWindow w;
-    //w.show();
+    CascadeClassifier faceCascade;
+    CascadeClassifier eyeCascade;
+    CascadeClassifier eyeGlassCascade;
+    VideoCapture capture;
+
+    //initialise the three cascade classifiers to be used
+    //initCascades(faceCascade, eyeCascade, eyeGlassCascade);
+    detection.initCascades(faceCascade, eyeCascade, eyeGlassCascade);
+
+    //initialise the camera
+    initCamera(capture);
+
+    //enter program loop
+    detectAndRecognise(capture, faceCascade, eyeCascade, eyeGlassCascade);
+
+    return 0;
+}
+
+void initCamera(VideoCapture& capture)
+{
+    try{
+        capture.open(0);
+        capture.set(CV_CAP_PROP_FRAME_WIDTH,CAMERA_WIDTH);
+        capture.set(CV_CAP_PROP_FRAME_HEIGHT, CAMERA_HEIGHT);
+        if(capture.isOpened()){
+            cout << "Stream opened sucessfully" << endl;
+        }else{
+            cout << "Error opening stream" << endl;
+        }
+    }
+    catch(cv::Exception &e){
+        cout << "Error: " << endl;
+    }
+}
+
+void detectAndRecognise(VideoCapture &capture, CascadeClassifier& faceCascade, CascadeClassifier& eyeCascade, CascadeClassifier& eyeGlassCascade)
+{
+    Ptr<FaceRecognizer> model;
+    vector<Mat> preProcessedFaces;
+    vector<int> faceLabels;
+    Mat referenceFace;
+    Mat processedImage;
 
     int identity = -1;
 
-    try{
-
-        //Load database images
-        Mat refFace = imread("/home/standby//Projects/faceRecognition/faces/Brandon.png",1);
-        Mat processed = faceDetector.emitSignal(refFace);
-
-        if(!processed.empty()){
-            storeFaces(processed);
-            model = faceRec.learnCollectedFaces(preProcessedFaces, faceLabels);
-        }
-        refFace.release();
-        processed.release();
-
-        //init cam
-        capture.set(CV_CAP_PROP_FRAME_WIDTH,640);
-        capture.set(CV_CAP_PROP_FRAME_HEIGHT, 480);
-        //capture.open("v4l2src ! videoscale ! video/x-raw-yuv,width=640,height=480 ! ffmpegcolorspace ! appsink");
-        capture.open(0);        //open cam
-    } catch(cv::Exception &e){}
-    if(!capture.isOpened()){
-        cout << "could not open cam" << endl;
-        return -1;
+    //Load the database image for the sleected user
+    referenceFace = imread(DATABASE_IMAGE,1);
+    if (referenceFace.empty()){
+        cout << "Error loading database image - check path: " << DATABASE_IMAGE << endl;
+        return;
     }
-    cout << "stream opened successfully " << endl;
-    while(1){
-        capture >> frame;       //grab frame from cam stream
-        imshow("stream",frame);     //and display it
+
+    //put image through preProcessing - returns a Mat of the face ROI
+    processedImage = detection.processImage(referenceFace, faceCascade, eyeCascade, eyeGlassCascade);
+    imshow("processed", processedImage);
+
+    //Add the processed face to the array
+    //Train the recogniser
+    storeFaces(processedImage, preProcessedFaces, faceLabels);
+    model = faceRecognition.learnCollectedFaces(preProcessedFaces, faceLabels);
+
+    //free up resources
+    processedImage.release();
+
+    Mat frame;
+    while(true)
+    {
+        //stream camera image to gui window
+        capture >> frame;
+        imshow("stream", frame);
         char c = waitKey(20);
-        if(c==27){              //if esc
+        if (c == 27){       //if esc key leave program
             break;
-        }else if(c==32){        //else if spacebar
-           // imshow("frame",frame);
-            face = faceDetector.emitSignal(frame);
-           // imshow("face", face);
-            if(!face.empty()){
-                storeFaces(face);
-                model = faceRec.learnCollectedFaces(preProcessedFaces, faceLabels);
-
-                Mat reconstructedFace = faceRec.reconstructFace(model, face);
-                imshow("reconstructed", reconstructedFace);
-
-                double similarity = faceRec.getSimilarity(face, reconstructedFace);
+        } else if(c == 32){ //if spacebar capture frame and run detection program
+            Mat userFace;
+            userFace = detection.processImage(frame, faceCascade, eyeCascade, eyeGlassCascade);
+            if(!userFace.empty()){  //if processing successful
+                imshow("userFace", userFace);
+                storeFaces(userFace, preProcessedFaces, faceLabels);
+                Mat reconstructedFace = faceRecognition.reconstructFace(model, userFace);   //project to pca space
+                double similarity = faceRecognition.getSimilarity(userFace, reconstructedFace); //compare with stored images
                 string output;
                 if (similarity < DETECTION_THRESHOLD){
-                    //identify person
-                    identity = model->predict(face);
+                    identity = model->predict(userFace);
                     output = toString(identity);
-                }
-                else{
-                    output = "Unknown";
+                }else{
+                    output = "Unkown";
                 }
                 cout << "Identity: " << output << ". Similarity: " << similarity << endl;
+
+            }else{
+                cout << "image processing failed" << endl;
             }
         }
     }
     cvDestroyWindow("stream");
-    return 0;
+    return;
 }
 
-void storeFaces(Mat& processedFace)
+void storeFaces(Mat &processedFace, vector<Mat>& preProcessedFaces, vector<int>& faceLabels)
 {
     Mat mirror;
     flip(processedFace, mirror, 1);
     //flip and store image so that FaceRecognizer has more training data
     preProcessedFaces.push_back(processedFace);
     preProcessedFaces.push_back(mirror);
+    //only one user so label is always the same
     faceLabels.push_back(0);
     faceLabels.push_back(0);
     cout << "processed faces: " << preProcessedFaces.size() << endl;
     return;
 }
-
 
 
