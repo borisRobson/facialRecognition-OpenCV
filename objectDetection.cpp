@@ -221,10 +221,19 @@ Mat detectObject::detectEyes(Mat& face, CascadeClassifier &eyeCascade1, CascadeC
         //cout << "Left eye: " << leftEye << endl;
     }
     else {
-        leftEye = Point(-1, -1);    // Return an invalid point
-        cout << "badleft" << endl;
-        topLeftFace = Mat();
-        return topLeftFace;
+        //try again with eyeGlasses
+        leftEyeRect = findObject(topLeftFace, eyeCascade2, topLeftFace.cols);
+        if (leftEyeRect.width > 0) {   // Check if the eye was detected.
+            leftEyeRect.x += leftX;    // Adjust the left-eye rectangle because the face border was removed.
+            leftEyeRect.y += topY;
+            leftEye = Point(leftEyeRect.x + leftEyeRect.width/2, leftEyeRect.y + leftEyeRect.height/2);
+        }
+        else{
+            leftEye = Point(-1, -1);    // Return an invalid point
+            cout << "badleft" << endl;
+            topLeftFace = Mat();
+            return topLeftFace;
+        }
     }
 
     if (rightEyeRect.width > 0) { // Check if the eye was detected.
@@ -234,10 +243,19 @@ Mat detectObject::detectEyes(Mat& face, CascadeClassifier &eyeCascade1, CascadeC
         //cout << "Right eye : " << rightEye << endl;
     }
     else {
-        rightEye = Point(-1, -1);    // Return an invalid point
-        cout << "badright" << endl;
-        topRightFace = Mat();
-        return topRightFace;
+        //try again with eyeGlasses
+        rightEyeRect = findObject(topRightFace, eyeCascade1 , topRightFace.cols);
+        if (rightEyeRect.width > 0) { // Check if the eye was detected.
+            rightEyeRect.x += rightX; // Adjust the right-eye rectangle, since it starts on the right side of the image.
+            rightEyeRect.y += topY;  // Adjust the right-eye rectangle because the face border was removed.
+            rightEye = Point(rightEyeRect.x + rightEyeRect.width/2, rightEyeRect.y + rightEyeRect.height/2);
+        }
+        else{
+            rightEye = Point(-1, -1);    // Return an invalid point
+            cout << "badright" << endl;
+            topRightFace = Mat();
+            return topRightFace;
+        }
     }
 
     //check got both eyes
