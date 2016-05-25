@@ -1,27 +1,22 @@
 #include "objectDetection.h"
+
 #include "opencv2/opencv.hpp"
 #include "opencv2/imgproc/imgproc.hpp"
 #include "opencv2/highgui/highgui.hpp"
-#include "opencv2/video/video.hpp"
 #include "opencv2/objdetect/objdetect.hpp"
-
-#include "opencv/cv.h"
-#include "opencv/cxcore.h"
 
 #include <stdio.h>
 #include <string>
 #include <iostream>
 #include <vector>
 
-//#include <gst/gst.h>
+
 
 using namespace cv;
 using namespace std;
 
 const char *faceCascadeFilename = "/home/standby/opencv/opencv-2.4.10/data/lbpcascades/lbpcascade_frontalface.xml";     // LBP face detector.
-//const char *eyeCascadeFilename1 = "/home/standby/opencv/opencv-2.4.10/data/haarcascades/haarcascade_mcs_lefteye.xml";               // Basic eye detector for open eyes only.
 const char *eyeCascadeFilename1 = "/home/standby/opencv/opencv-2.4.10/data/haarcascades/haarcascade_eye.xml";               // Basic eye detector for open eyes only.
-
 const char *eyeCascadeFilename2 = "/home/standby/opencv/opencv-2.4.10/data/haarcascades/haarcascade_eye_tree_eyeglasses.xml"; // Basic eye detector for open eyes if they might wear glasses.
 
 const int faceWidth = 70;
@@ -31,8 +26,6 @@ const double FACE_ELLIPSE_CY = 0.40;
 const double FACE_ELLIPSE_W = 0.50;         // Should be atleast 0.5
 const double FACE_ELLIPSE_H = 0.80;         // Controls how tall the face mask is.
 
-bool faceFound = FALSE;
-
 detectObject::detectObject()
 {    
 }
@@ -40,28 +33,13 @@ detectObject::detectObject()
 detectObject::~detectObject()
 {
 }
+
 /*
-Mat storedFace;
-Mat detectObject::emitSignal(Mat& img)
-{
-    //imshow("im", img);
-    emit checkFrame(img);
-    img.release();
-
-    if(!storedFace.empty()){
-        return storedFace;
-    }else{
-        return Mat();
-    }
-}*/
-
-/*void detectObject::storeProcessedFace(Mat &processedFace)
-{
-    processedFace.copyTo(storedFace);
-    imshow("stored", storedFace);
-
-}*/
-
+  converts input image to grayscale, detects face and eyes
+  if successful image is scaled and histogram equalised
+  @params - img (input image); faceCascade; eyeCascade; eyeGlassCascade;
+  @returns - Mat processedImage (face if successful, empty if fail)
+*/
 Mat detectObject::processImage(Mat &img, CascadeClassifier &faceCascade, CascadeClassifier &eyeCascade, CascadeClassifier &eyeGlassCascade)
 {
     Mat greyImage;
@@ -85,10 +63,15 @@ Mat detectObject::processImage(Mat &img, CascadeClassifier &faceCascade, Cascade
     Rect faceRect;
     Mat faceImage;
     Mat faceAndEyes;
-    faceRect = findObject(greyImage, faceCascade); //search for largest object
-    if (faceRect.width > 0){                    //if found
+
+    //searches for largest object in image(face)
+    faceRect = findObject(greyImage, faceCascade);
+    //if found
+    if (faceRect.width > 0){
+        //isolate area in original image
         faceImage = greyImage(faceRect);
         Point leftEye, rightEye;
+        //search reduced image for eye shapes
         faceAndEyes = detectEyes(faceImage, eyeCascade, eyeGlassCascade, leftEye, rightEye);
         //imshow("faceImage",faceImage);
     }else{
@@ -97,10 +80,14 @@ Mat detectObject::processImage(Mat &img, CascadeClassifier &faceCascade, Cascade
         faceImage.release();
         return faceAndEyes;
     }
+    //free up resources
     faceImage.release();
     return faceAndEyes;
 }
 
+/*
+  initialises cascade objects
+*/
 
 void detectObject::initCascades(CascadeClassifier &faceCascade, CascadeClassifier &eyeCascade, CascadeClassifier &eyeGlassCascade)
 {
@@ -132,6 +119,13 @@ void detectObject::initCascades(CascadeClassifier &faceCascade, CascadeClassifie
     }
 }
 
+/*
+  finds largest object in the input image
+  classifier determines whether face or eyes are detected
+  @params - image(input image), cascade(face or eyes), scaledWidth(for normalising image)
+  @returns - Rect (co-ordinates of detected object)
+*/
+
 Rect detectObject::findObject(Mat &image, CascadeClassifier &cascade,  int scaledWidth)
 {
     int flags = CASCADE_FIND_BIGGEST_OBJECT; //search for 1 large object
@@ -141,6 +135,7 @@ Rect detectObject::findObject(Mat &image, CascadeClassifier &cascade,  int scale
     vector<Rect> objects;
     Mat srchImage;
 
+    //Detect if object can be shrunk to increase detection speed
     float scale = image.cols / (float)scaledWidth;
     if(image.cols > scaledWidth){
         //shrink image while keeping aspect ratio
@@ -151,6 +146,7 @@ Rect detectObject::findObject(Mat &image, CascadeClassifier &cascade,  int scale
         srchImage = image;
     }
 
+    //opencv's detection function
     cascade.detectMultiScale(srchImage, objects, searchDetailFactor, minNeighbours, flags, minSize);
 
     // Enlarge the results if the image was temporarily shrunk before detection.
@@ -184,6 +180,15 @@ Rect detectObject::findObject(Mat &image, CascadeClassifier &cascade,  int scale
     return rect;
 }
 
+/*
+  detect eyes in scaled face image
+  sets expected position parameters and runs detection
+  scales and warps the image to desired position
+  @params - face (scaled face image); eyeCascade1(normal eye); eyeCascade2(eye with galsses)
+            leftEye(co-ordinates centre point of left eye)
+            rightEye(co-ordinates of centre point of right eye)
+  @returns - scaled and warped image used in FaceRecogniser
+*/
 Mat detectObject::detectEyes(Mat& face, CascadeClassifier &eyeCascade1, CascadeClassifier &eyeCascade2,
                                 Point &leftEye, Point &rightEye)
 {
@@ -193,15 +198,18 @@ Mat detectObject::detectEyes(Mat& face, CascadeClassifier &eyeCascade1, CascadeC
     const float EYE_WIDTH = 0.30f;
     const float EYE_HEIGHT = 0.28f;
 
+    //set position parameters for both eyes
     int leftX = cvRound(face.cols * EYE_XPOS);
     int topY = cvRound(face.rows * EYE_YPOS);
     int widthX = cvRound(face.cols * EYE_WIDTH);
     int heightY = cvRound(face.rows * EYE_HEIGHT);
     int rightX = cvRound(face.cols * (1 - EYE_XPOS - EYE_WIDTH));
 
+    //create separate images for both eyes
     Mat topLeftFace = face(Rect(leftX, topY, widthX, heightY));
     Mat topRightFace = face(Rect(rightX, topY, widthX, heightY));
 
+    //search for eyes in each focused image
     Rect leftEyeRect, rightEyeRect;
     leftEyeRect = findObject(topLeftFace, eyeCascade1, topLeftFace.cols);
     rightEyeRect = findObject(topRightFace, eyeCascade1 , topRightFace.cols);
@@ -210,6 +218,7 @@ Mat detectObject::detectEyes(Mat& face, CascadeClassifier &eyeCascade1, CascadeC
         leftEyeRect.x += leftX;    // Adjust the left-eye rectangle because the face border was removed.
         leftEyeRect.y += topY;
         leftEye = Point(leftEyeRect.x + leftEyeRect.width/2, leftEyeRect.y + leftEyeRect.height/2);
+        //cout << "Left eye: " << leftEye << endl;
     }
     else {
         leftEye = Point(-1, -1);    // Return an invalid point
@@ -222,6 +231,7 @@ Mat detectObject::detectEyes(Mat& face, CascadeClassifier &eyeCascade1, CascadeC
         rightEyeRect.x += rightX; // Adjust the right-eye rectangle, since it starts on the right side of the image.
         rightEyeRect.y += topY;  // Adjust the right-eye rectangle because the face border was removed.
         rightEye = Point(rightEyeRect.x + rightEyeRect.width/2, rightEyeRect.y + rightEyeRect.height/2);
+        //cout << "Right eye : " << rightEye << endl;
     }
     else {
         rightEye = Point(-1, -1);    // Return an invalid point
@@ -241,8 +251,7 @@ Mat detectObject::detectEyes(Mat& face, CascadeClassifier &eyeCascade1, CascadeC
         double dy = (rightEye.y - leftEye.y);
         double dx = (rightEye.x - leftEye.x);
         double len = sqrt(dx*dx + dy*dy);
-        double angle = atan2(dy, dx) * 180.0/CV_PI; //convert from rad to deg
-        //cout << "dy: " << dy << " dx: " << dx << " len: " << len << " angle: " << angle << endl;
+        double angle = atan2(dy, dx) * 180.0/CV_PI; //convert from rad to deg        
 
         //Experimental measurements show left eye centre should be at roughly (0.19,0.14) of scaled face
         const double DESIRED_RIGHT_EYE_X = (1.0f - DESIRED_LEFT_EYE_X);
@@ -263,6 +272,7 @@ Mat detectObject::detectEyes(Mat& face, CascadeClassifier &eyeCascade1, CascadeC
 
         equalizeLeftAndRightHalves(warped);
 
+        //smooth image
         Mat filtered = Mat(warped.size(), CV_8U);
         bilateralFilter(warped, filtered, 0, 20.0, 20.0);;
 
@@ -285,11 +295,14 @@ Mat detectObject::detectEyes(Mat& face, CascadeClassifier &eyeCascade1, CascadeC
     }
 }
 
+/*
+  common for uneven light coniditions across face
+  equalise left & right separately, then again equalise resultt
+  this creates an average across t eentire image
+  @params - scaled face image
+*/
 void detectObject::equalizeLeftAndRightHalves(Mat &faceImg)   //seperately equalise left and right halves of face
 {
-    /*common for uneven light coniditions across face
-      equalise left & right separately, then again equalise resultt
-      this creates an average across t eentire image*/
 
     int width = faceImg.cols;
     int height = faceImg.rows;
@@ -313,7 +326,7 @@ void detectObject::equalizeLeftAndRightHalves(Mat &faceImg)   //seperately equal
             else if(x < width*2/4){   //mid25%: blend left & whole
                 int lv = leftSide.at<uchar>(y,x);
                 int wv = wholeFace.at<uchar>(y,x);
-                //blend more of teh face as it moves further right
+                //blend more of the face as it moves further right
                 float f = (x - width*1/4)/(float)(width*0.25f);
                 v = cvRound((1.0f - f) * lv + (f) * wv);
             }
@@ -332,27 +345,3 @@ void detectObject::equalizeLeftAndRightHalves(Mat &faceImg)   //seperately equal
     }
     return;
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-

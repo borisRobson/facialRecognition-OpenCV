@@ -13,29 +13,16 @@ class detectObject : public QObject
 public:
     detectObject();
     ~detectObject();
-    //void openStream();
+
     void detectLargestObject();
     void initCascades(CascadeClassifier& faceCascade, CascadeClassifier& eyeCascade, CascadeClassifier& eyeGlassesCascade);
+    void equalizeLeftAndRightHalves(Mat &faceImg);
+
     Rect findObject(Mat &image, CascadeClassifier &cascade, int scaledWidth = 320);
     Mat detectEyes(Mat& face, CascadeClassifier &eyeCascade1, CascadeClassifier &eyeCascade2, Point &leftEye, Point &rightEye);
-    void equalizeLeftAndRightHalves(Mat &faceImg);
     Mat processImage(Mat &img, CascadeClassifier& faceCascade, CascadeClassifier& eyeCascade, CascadeClassifier& eyeGlassCascade);
     Mat emitSignal(Mat& img);
 
-
-
-
-
-    //Rect faceRect;
-
-
-private slots:
-//    Mat processImage(Mat &img);
-   // void storeProcessedFace(Mat &processedFace);
-
-signals:
-    //void checkFrame(Mat &img);
-   // void processedFace(Mat &processedFace);
 
 
 };

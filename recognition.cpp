@@ -17,6 +17,12 @@ recognition::~recognition()
 {
 }
 
+/*
+  Trains the Face recogniser with processed images
+  @params - preProcessedfaces(array); faceLabes(array); faceAlgorthm(string)
+  @returns - trained faceRecogniser
+*/
+
 Ptr<FaceRecognizer> recognition::learnCollectedFaces(const vector<Mat> preprocessedFaces, const vector<int> faceLabels, const string facerecAlgorithm)
 {
     Ptr<FaceRecognizer> model;
@@ -42,7 +48,11 @@ Ptr<FaceRecognizer> recognition::learnCollectedFaces(const vector<Mat> preproces
     return model;
 }
 
-//genereate a reconstructed face by backprojecting eigenvectors and eigenvalues of given preprocessed face
+/*
+    genereate a reconstructed face by backprojecting eigenvectors and eigenvalues of given preprocessed face
+    @params - FaceRecogniser ; processedFace
+    @returns - reconstruced Face
+*/
 Mat recognition::reconstructFace(const Ptr<FaceRecognizer> model, const Mat preprocessedFace)
 {
     try{
@@ -53,7 +63,7 @@ Mat recognition::reconstructFace(const Ptr<FaceRecognizer> model, const Mat prep
         int faceHeight = preprocessedFace.rows;
 
         //project input into PCA subspace
-        Mat projection = subspaceProject(eigenvectors, averageFaceRow, preprocessedFace.reshape(1,1));
+        Mat projection = subspaceProject(eigenvectors, averageFaceRow, preprocessedFace.reshape(1,1));        
 
         //generate reconstructed face back form pca
         Mat reconstructionRow = subspaceReconstruct(eigenvectors, averageFaceRow, projection);
@@ -72,7 +82,11 @@ Mat recognition::reconstructFace(const Ptr<FaceRecognizer> model, const Mat prep
     }
 }
 
-//compare 2 images by getting the L2 error; (sqrt of sum of squared error)
+/*
+    compare 2 images by getting the L2 error; (sqrt of sum of squared error)
+    @params - reconstructed face; capturedface
+    @returns - similarity
+*/
 double recognition::getSimilarity(const Mat A, const Mat B)
 {
     if (A.rows > 0 && A.rows == B.rows && A.cols > 0 && A.cols == B.cols){
