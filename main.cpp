@@ -104,6 +104,11 @@ void initCamera(VideoCapture& capture)
 
 void detectAndRecognise(VideoCapture &capture, CascadeClassifier& faceCascade, CascadeClassifier& eyeCascade, CascadeClassifier& eyeGlassCascade)
 {
+    cout << "Face Recognition with open cv" << endl;
+    cout << "press 'spacebar' to capture image and compare with database" << endl;
+    cout << "press 'enter' to add user" << endl;
+    cout << "press 'esc' to exit" << endl;
+
     Ptr<FaceRecognizer> model;
     vector<Mat> preProcessedFaces;
     vector<int> faceLabels;
@@ -115,7 +120,8 @@ void detectAndRecognise(VideoCapture &capture, CascadeClassifier& faceCascade, C
     int identity = -1;
     databaseImage = DATABASE_DIR + Name + EXT;
 
-    //Load the database image for the sleected user
+    //Try to load image specified by Name
+    //if fail enter loop waiting for enter keypress
     try{
         referenceFace = imread(databaseImage,1);
     }catch(cv::Exception&e){};
@@ -137,7 +143,6 @@ void detectAndRecognise(VideoCapture &capture, CascadeClassifier& faceCascade, C
     processedImage = detection.processImage(referenceFace, faceCascade, eyeCascade, eyeGlassCascade);
     if(!processedImage.empty()){
         imshow("processed", processedImage);
-
         //Add the processed face to the array
         //Train the recogniser
         storeFaces(processedImage, preProcessedFaces, faceLabels);
