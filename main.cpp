@@ -37,27 +37,27 @@ const string DATABASE_DIR = "/home/standby/Projects/faceRecognition/faces/";
 const string EXT = ".png";
 string Name;
 const float DETECTION_THRESHOLD = 0.7f;
-const int TIMEOUT = 50;
-
+const int TIMEOUT = 75;
+const int matchThreshold = 5;
+const int ESC_KEY = 27;
+const int ENTER_KEY = 13;
+const int SPACE_KEY = 32;
 
 //function prototypes
 void initCamera(VideoCapture &capture);
 void detectAndRecognise(VideoCapture &capture, CascadeClassifier &faceCascade, CascadeClassifier &eyeCascade, CascadeClassifier &eyeGlassCascade);
 void storeFaces(Mat &processedFace, vector<Mat>& preProcessedFaces, vector<int>& faceLabels);
-//vector<Mat> captureUserImages(VideoCapture &capture, QTimer &timer);
 void writeImage(Mat &image, string name);
-void imgCap();
+
 
 detectObject detection;
 recognition faceRecognition;
 captureImages captureImage;
 
-
 /*
   Program entry point - initialises cascades and camera
   then enters program loop
 */
-
 int main (int argc, char* argv[])
 {
     if (argc > 0){
@@ -69,15 +69,12 @@ int main (int argc, char* argv[])
     CascadeClassifier eyeGlassCascade;
     VideoCapture capture;
 
-
-
     //initialise the three cascade classifiers to be used
     //initCascades(faceCascade, eyeCascade, eyeGlassCascade);
     detection.initCascades(faceCascade, eyeCascade, eyeGlassCascade);
 
     //initialise the camera
     initCamera(capture);
-
 
     //check if user exists
     //enter program loop
@@ -90,7 +87,6 @@ int main (int argc, char* argv[])
     Initialises and opens camera stream
     @params VideoCapture
 */
-
 void initCamera(VideoCapture& capture)
 {
     try{
@@ -113,13 +109,7 @@ void initCamera(VideoCapture& capture)
     Loads database image, processess it and then trains the FaceRecogniser
     Streams camera image, on button press captures frame, processess and compares
     @params VideoCapture; FaceCascade; eyeCascade; eyeGlassCascade
-
 */
-
-void imCap()
-{
-    cout << "here" << endl;
-}
 
 void detectAndRecognise(VideoCapture &capture, CascadeClassifier& faceCascade, CascadeClassifier& eyeCascade, CascadeClassifier& eyeGlassCascade)
 {
@@ -127,8 +117,6 @@ void detectAndRecognise(VideoCapture &capture, CascadeClassifier& faceCascade, C
     cout << "press 'spacebar' to capture image and compare with database" << endl;
     cout << "press 'enter' to add user" << endl;
     cout << "press 'esc' to exit" << endl;
-
-
 
     vector<Mat> userFaces;
     Ptr<FaceRecognizer> model;
@@ -138,7 +126,10 @@ void detectAndRecognise(VideoCapture &capture, CascadeClassifier& faceCascade, C
     Mat referenceFace;
     Mat processedImage;
     Mat frame;
+    Mat userFace;
     string databaseImage;
+    int matches = 0;
+    double similarity;
 
     int identity = -1;
     databaseImage = DATABASE_DIR + Name + EXT;
@@ -161,7 +152,6 @@ void detectAndRecognise(VideoCapture &capture, CascadeClassifier& faceCascade, C
             }
         }
     }
-
     //put image through preProcessing - returns a Mat of the face ROI
     processedImage = detection.processImage(referenceFace, faceCascade, eyeCascade, eyeGlassCascade);
     if(!processedImage.empty()){
@@ -180,63 +170,60 @@ void detectAndRecognise(VideoCapture &capture, CascadeClassifier& faceCascade, C
         //stream camera image to gui window
         capture >> frame;
         imshow("stream", frame);
-        try{
-            if (!captureImage.timer->isActive() && keyPressed ){
-                captureImage.startTimer(TIMEOUT, capture, userFaces);
-                keyPressed = false;
-                int size = userFaces.size();
-                if(size != 0){
-                    imshow("userface", userFaces.at(9));
-                    int faceCount = userFaces.size();
-                    for (int i = 0; i < faceCount; i++){
-                        Mat face = userFaces.at(i);
-                        //imshow(toString(i), face);
-
+        if (!captureImage.timer->isActive() && keyPressed ){    //if timer has elapsed and key has been pressed
+            captureImage.startTimer(TIMEOUT, capture, userFaces);
+            keyPressed = false;
+            int size = userFaces.size();
+            if(size != 0){      //confirm that array has been filled
+                imshow("userface", userFaces.at(9));
+                int faceCount = userFaces.size();
+                //process each captured image
+                for (int i = 0; i < faceCount; i++){
+                    Mat face = userFaces.at(i);
+                    //imshow(toString(i), face);
+                    userFace = detection.processImage(face, faceCascade, eyeCascade, eyeGlassCascade);
+                    if(!userFace.empty()){  //if processing successful
+                        //imshow("userFace", userFace);
+                        capturedAndProcessedFaces.push_back(userFace);
                     }
                 }
-            }
-        }
-        catch(const out_of_range& oor){cout << "err" << endl;}
-        char c = waitKey(20);
-        if (c == 27){       //if esc key leave program
-            break;
-        }else if(c == 13){      //if enter
-            writeImage(frame, Name);
-        }
-        else if(c == 32){ //if spacebar capture frame and run detection program
-            keyPressed=true;
-            Mat userFace;
-            captureImage.startTimer(TIMEOUT, capture, userFaces);
-            /*TODO check each item of array
-              If successful add to processedFaces
-              Foreach processedface
-                compare
-                if success
-                    match++
-                    if(match > match_thresh)
-                        success
-            */
-            userFace = detection.processImage(frame, faceCascade, eyeCascade, eyeGlassCascade);
-            if(!userFace.empty()){  //if processing successful
-                //imshow("userFace", userFace);
-                Mat reconstructedFace = faceRecognition.reconstructFace(model, userFace);   //project to pca space                
-                double similarity = faceRecognition.getSimilarity(userFace, reconstructedFace); //compare with stored images
-                string output;
-                if (similarity < DETECTION_THRESHOLD){
-                    identity = model->predict(userFace);
-                    output = toString(identity);
-                    storeFaces(userFace, preProcessedFaces, faceLabels);
-                }else{
-                    output = "Unkown";
+                //use successfully processed images for face recogniser
+                for (int i = 0; i < (int)capturedAndProcessedFaces.size(); i++){
+                    Mat reconstructedFace = faceRecognition.reconstructFace(model, userFace);   //project to pca space
+                    similarity = faceRecognition.getSimilarity(userFace, reconstructedFace); //compare with stored images
+                    string output;
+                    if (similarity < DETECTION_THRESHOLD){
+                        identity = model->predict(userFace);
+                        output = toString(identity);
+                        storeFaces(userFace, preProcessedFaces, faceLabels);
+                        //model = faceRecognition.learnCollectedFaces(preProcessedFaces, faceLabels); //re-train face rec with more matches
+                        matches++;
+                    }else{
+                        output = "Unknown";
+                    }
                 }
-                cout << "Identity: " << Name << ". Similarity: " << similarity << endl;
-
+                if(matches >= matchThreshold){
+                     cout << "Identity: " << Name << ". Similarity: " << similarity << " matches: " << matches << endl;
+                }else{
+                    cout << "insufficient match count: " << matches << endl;
+                }
             }else{
                 cout << "image processing failed" << endl;
             }
         }
-    }
-    cvDestroyWindow("stream");
+
+        char c = waitKey(20);
+        if (c == ESC_KEY){       //if esc key leave program
+            break;
+        }else if(c == ENTER_KEY){      //if enter
+            writeImage(frame, Name);
+        }
+        else if(c == SPACE_KEY){ //if spacebar capture frame and run detection program
+            keyPressed=true;
+            captureImage.startTimer(TIMEOUT, capture, userFaces);
+        }
+    }    
+    cvDestroyAllWindows();
     return;
 }
 

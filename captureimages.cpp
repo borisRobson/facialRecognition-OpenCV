@@ -17,6 +17,8 @@ using namespace cv;
 VideoCapture cap;
 vector<Mat>faces;
 
+const int imageCount = 10;
+
 template <typename T> string toString(T t)
 {
     ostringstream out;
@@ -40,13 +42,14 @@ void captureImages::startTimer(int interval, VideoCapture& capture, vector<Mat>&
         timer->start(interval);
     }else{
         userFaces = faces;
+        done = false;
     }
 }
 
 void captureImages::captureImage()
 {
     Mat face;
-    if(count < 10){
+    if(count < imageCount){
         cap >> face;
         faces.push_back(face);
     }else{

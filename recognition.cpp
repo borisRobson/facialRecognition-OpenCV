@@ -64,6 +64,7 @@ Mat recognition::reconstructFace(const Ptr<FaceRecognizer> model, const Mat prep
 
         //project input into PCA subspace
         Mat projection = subspaceProject(eigenvectors, averageFaceRow, preprocessedFace.reshape(1,1));        
+        //imshow("projection", averageFaceRow);
 
         //generate reconstructed face back form pca
         Mat reconstructionRow = subspaceReconstruct(eigenvectors, averageFaceRow, projection);
