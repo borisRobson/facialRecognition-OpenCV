@@ -27,7 +27,7 @@ const double FACE_ELLIPSE_W = 0.50;         // Should be atleast 0.5
 const double FACE_ELLIPSE_H = 0.80;         // Controls how tall the face mask is.
 
 detectObject::detectObject()
-{    
+{
 }
 
 detectObject::~detectObject()
@@ -221,10 +221,19 @@ Mat detectObject::detectEyes(Mat& face, CascadeClassifier &eyeCascade1, CascadeC
         //cout << "Left eye: " << leftEye << endl;
     }
     else {
-        leftEye = Point(-1, -1);    // Return an invalid point
-        cout << "badleft" << endl;
-        topLeftFace = Mat();
-        return topLeftFace;
+        //try again with eyeGlasses
+        leftEyeRect = findObject(topLeftFace, eyeCascade2, topLeftFace.cols);
+        if (leftEyeRect.width > 0) {   // Check if the eye was detected.
+            leftEyeRect.x += leftX;    // Adjust the left-eye rectangle because the face border was removed.
+            leftEyeRect.y += topY;
+            leftEye = Point(leftEyeRect.x + leftEyeRect.width/2, leftEyeRect.y + leftEyeRect.height/2);
+        }
+        else{
+            leftEye = Point(-1, -1);    // Return an invalid point
+            cout << "badleft" << endl;
+            topLeftFace = Mat();
+            return topLeftFace;
+        }
     }
 
     if (rightEyeRect.width > 0) { // Check if the eye was detected.
@@ -234,10 +243,19 @@ Mat detectObject::detectEyes(Mat& face, CascadeClassifier &eyeCascade1, CascadeC
         //cout << "Right eye : " << rightEye << endl;
     }
     else {
-        rightEye = Point(-1, -1);    // Return an invalid point
-        cout << "badright" << endl;
-        topRightFace = Mat();
-        return topRightFace;
+        //try again with eyeGlasses
+        rightEyeRect = findObject(topRightFace, eyeCascade1 , topRightFace.cols);
+        if (rightEyeRect.width > 0) { // Check if the eye was detected.
+            rightEyeRect.x += rightX; // Adjust the right-eye rectangle, since it starts on the right side of the image.
+            rightEyeRect.y += topY;  // Adjust the right-eye rectangle because the face border was removed.
+            rightEye = Point(rightEyeRect.x + rightEyeRect.width/2, rightEyeRect.y + rightEyeRect.height/2);
+        }
+        else{
+            rightEye = Point(-1, -1);    // Return an invalid point
+            cout << "badright" << endl;
+            topRightFace = Mat();
+            return topRightFace;
+        }
     }
 
     //check got both eyes
@@ -251,7 +269,7 @@ Mat detectObject::detectEyes(Mat& face, CascadeClassifier &eyeCascade1, CascadeC
         double dy = (rightEye.y - leftEye.y);
         double dx = (rightEye.x - leftEye.x);
         double len = sqrt(dx*dx + dy*dy);
-        double angle = atan2(dy, dx) * 180.0/CV_PI; //convert from rad to deg        
+        double angle = atan2(dy, dx) * 180.0/CV_PI; //convert from rad to deg
 
         //Experimental measurements show left eye centre should be at roughly (0.19,0.14) of scaled face
         const double DESIRED_RIGHT_EYE_X = (1.0f - DESIRED_LEFT_EYE_X);
